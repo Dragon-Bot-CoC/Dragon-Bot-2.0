@@ -95,7 +95,7 @@ async def on_guild_join(guild):
             VALUES (%s, %s)
         """, (str(guild.id), guild.name))
         if guild.system_channel:
-            await guild.system_channel.send("Baby Dragon Bot has arrived! Use `/setclantag` to get started.")
+            await guild.system_channel.send("Dragon Bot 2.0 has arrived! Use `/setclantag` to get started.")
     except Exception as e:
         print(f"DB Error on guild join: {e}")
 
