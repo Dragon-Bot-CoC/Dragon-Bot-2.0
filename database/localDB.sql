@@ -3,7 +3,9 @@ DROP TABLE IF EXISTS players;
 CREATE TABLE servers (  
     guild_id CHAR(20) PRIMARY KEY,   
     guild_name TEXT NOT NULL,    
-    clan_tag TEXT
+    clan_tag TEXT,
+    war_channel_id TEXT,
+    raid_channel_id TEXT
     );
 ALTER TABLE servers ADD COLUMN IF NOT EXISTS war_channel_id CHAR(20);
 CREATE TABLE players (    
