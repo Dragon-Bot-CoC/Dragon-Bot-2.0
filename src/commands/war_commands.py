@@ -564,7 +564,7 @@ class WarPatrol(commands.Cog):
                     if not channel:
                         channel = await self.bot.fetch_channel(int(war_channel_id))
 
-                    # (Add your Embed formatting logic here from previous steps)
+                   
                     hours = seconds_left // 3600
                     minutes = (seconds_left % 3600) // 60
                     exact_time = f"{hours}h {minutes}m"
@@ -592,13 +592,13 @@ class WarPatrol(commands.Cog):
                         f"**{war_data.clan.name}**: ⭐ {war_data.clan.stars} ({war_data.clan.destruction:.1f}%)\n"
                         f"**{war_data.opponent.name}**: ⭐ {war_data.opponent.stars} ({war_data.opponent.destruction:.1f}%)"
                     )
-                    embed.add_field(name="Score", value=scoreboard, inline=True)
+                    embed.add_field(name="Score:", value=f"`{scoreboard}`", inline=True)
 
                     embed.add_field(name="⏳ Time Left", value=f"` {exact_time} `", inline=True)
 
                     # 3. Add the slackers below the score
                     embed.add_field(name="Pending Attacks", value="\n".join(slacking_names), inline=False)
-                    embed.set_footer(text=f"War Type: {source_label}")
+                    embed.set_footer(text=f"War Type: `{source_label}`")
 
                     await channel.send(embed=embed)
 

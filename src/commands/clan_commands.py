@@ -384,60 +384,61 @@ class ClanCommands(commands.Cog):
     @raid_check.before_loop
     async def before_raid_check(self):
         await self.bot.wait_until_ready()
-@app_commands.command(name="test_raid_reminder", description="Forces a raid reminder check for the current server.")
-async def test_raid_reminder(self, interaction: discord.Interaction):
-    await interaction.response.defer(thinking=True)
+
+# @app_commands.command(name="test_raid_reminder", description="Forces a raid reminder check for the current server.")
+# async def test_raid_reminder(self, interaction: discord.Interaction):
+#     await interaction.response.defer(thinking=True)
     
-    try:
-        cursor = await get_safe_cursor(retries=3, delay=5)
-        # Fetch config ONLY for this guild to avoid spamming other servers during testing
-        cursor.execute(
-            "SELECT clan_tag, raid_channel_id FROM servers WHERE guild_id = %s", 
-            (interaction.guild_id,)
-        )
-        result = cursor.fetchone()
+#     try:
+#         cursor = await get_safe_cursor(retries=3, delay=5)
+#         # Fetch config ONLY for this guild to avoid spamming other servers during testing
+#         cursor.execute(
+#             "SELECT clan_tag, raid_channel_id FROM servers WHERE guild_id = %s", 
+#             (interaction.guild_id,)
+#         )
+#         result = cursor.fetchone()
 
-        if not result or not result[0] or not result[1]:
-            return await interaction.followup.send("❌ Error: No clan tag or raid channel set for this server.")
+#         if not result or not result[0] or not result[1]:
+#             return await interaction.followup.send("❌ Error: No clan tag or raid channel set for this server.")
 
-        tag, raid_channel_id = result
-        found_raid = False
+#         tag, raid_channel_id = result
+#         found_raid = False
 
-        async for raid in self.coc_client.get_raid_log(tag, limit=1):
-            if raid.state != "ongoing":
-                return await interaction.followup.send(f"ℹ️ The raid for `{tag}` is not currently ongoing.")
+#         async for raid in self.coc_client.get_raid_log(tag, limit=1):
+#             if raid.state != "ongoing":
+#                 return await interaction.followup.send(f"ℹ️ The raid for `{tag}` is not currently ongoing.")
 
-            found_raid = True
-            # Identify Slackers (Logic copied exactly from your task)
-            slackers = [f"• **{m.name}** ({m.attack_count}/6)" for m in raid.members if m.attack_count < 6]
+#             found_raid = True
+#             # Identify Slackers 
+#             slackers = [f"• **{m.name}** ({m.attack_count}/6)" for m in raid.members if m.attack_count < 6]
             
-            if not slackers:
-                return await interaction.followup.send("✅ Everyone has finished their attacks!")
+#             if not slackers:
+#                 return await interaction.followup.send("✅ Everyone has finished their attacks!")
 
-            # Target the test channel
-            channel = self.bot.get_channel(int(raid_channel_id))
-            if not channel:
-                channel = await self.bot.fetch_channel(int(raid_channel_id))
+#             # Target the test channel
+#             channel = self.bot.get_channel(int(raid_channel_id))
+#             if not channel:
+#                 channel = await self.bot.fetch_channel(int(raid_channel_id))
 
-            # We force "FINAL 6 HOURS" label for the test
-            embed = discord.Embed(
-                title="🏰 [TEST] FINAL 6 HOURS: Capital Raid",
-                description="This is a manual test of the reminder system.",
-                color=0xFF4500 
-            )
-            embed.add_field(name="Pending Hits", value="\n".join(slackers[:20]))
-            embed.set_footer(text=f"Total Loot: {raid.capital_resources_looted:,}")
+#             # We force "FINAL 6 HOURS" label for the test
+#             embed = discord.Embed(
+#                 title="🏰 [TEST] FINAL 6 HOURS: Capital Raid",
+#                 description="This is a manual test of the reminder system.",
+#                 color=0xFF4500 
+#             )
+#             embed.add_field(name="Pending Hits", value="\n".join(slackers[:20]))
+#             embed.set_footer(text=f"Total Loot: {raid.capital_resources_looted:,}")
             
-            await channel.send(embed=embed)
-            await interaction.followup.send(f"✅ Test reminder sent to <#{raid_channel_id}>")
-            break 
+#             await channel.send(embed=embed)
+#             await interaction.followup.send(f"✅ Test reminder sent to <#{raid_channel_id}>")
+#             break 
 
-        if not found_raid:
-            await interaction.followup.send("❌ No raid log entries found for this clan.")
+#         if not found_raid:
+#             await interaction.followup.send("❌ No raid log entries found for this clan.")
 
-    except Exception as e:
-        await interaction.followup.send(f"⚠️ Test Command Error: {e}")
-        print(f"Test Raid Error: {e}")
+#     except Exception as e:
+#         await interaction.followup.send(f"⚠️ Test Command Error: {e}")
+#         print(f"Test Raid Error: {e}")
 
 # Requirement for main.py loading
 async def setup(bot):

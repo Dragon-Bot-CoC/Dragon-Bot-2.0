@@ -10,7 +10,7 @@ if current_dir not in sys.path:
     sys.path.append(current_dir)
 
 # 2. Import bot and other setups from your config file
-# NOTE: We import the whole 'config' module to avoid getting a stale 'None' coc_client
+
 import config
 from config import TOKEN, get_db_cursor, initialize_coc, bot 
 
@@ -48,7 +48,7 @@ async def setup():
         await bot.start(TOKEN) 
 
 @tasks.loop(minutes=9)
-async def war_reminder(self):
+async def db_heartbeat(self):
     cursor = None
     # Attempt to connect up to 3 times
     for attempt in range(3):
@@ -74,10 +74,9 @@ async def on_ready():
         print("💓 Database heartbeat started.")
 
     try:
-        # OPTION A: Global Sync (Slow - up to 1 hour)
         await bot.tree.sync() 
         
-        # OPTION B: Specific Guild Sync (Instant - Use for testing!)
+        # Specific Guild Sync (Instant - Use for testing!)
         # Replace 123456789 with your test server ID
         # test_guild = discord.Object(id=123456789)
         # bot.tree.copy_global_to(guild=test_guild)

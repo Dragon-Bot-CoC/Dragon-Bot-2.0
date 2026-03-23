@@ -12,8 +12,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# 6. Set the Python path so it can find your modules inside DragonFolder
-ENV PYTHONPATH="/app:/app/DragonFolder"
+# 6. Set the Python path so it can find your modules inside src
+ENV PYTHONPATH="/app:/app/src"
 
 
-CMD ["python", "DragonFolder/main.py"]
+CMD ["python", "src/main.py"]
