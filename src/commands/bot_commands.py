@@ -235,7 +235,30 @@ class BotCommands(commands.Cog):
         result = "Heads!!!" if random.randint(1, 2) == 1 else "Tails!!!"
         await interaction.response.send_message(f"The coin flips to... {result}")
 
-    
+    @app_commands.command(name="about", description="Information about Dragon Bot 2.0")
+    async def about(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="About Dragon Bot 2.0",
+            description="The ultimate companion for Clash of Clans leaders and players.",
+            color=0x00ff00 # Or your brand color
+        )
+
+        # Main Info
+        embed.add_field(name="Developer", value="Keepas", inline=True)
+        embed.add_field(name="Website", value="[Visit Dashboard](https://dragon-bot-website.vercel.app/)", inline=True)
+
+        
+        embed.add_field(
+            name="Legal",
+            value=(
+                "Dragon Bot 2.0 is an independent fan-made tool. "
+                "It is not affiliated with, endorsed, or sponsored by Supercell. "
+                "All game assets and trademarks belong to Supercell."
+            ),
+            inline=False
+        )
+        await interaction.response.send_message(embed=embed)
+
     @app_commands.command(name="botstatus", description="Get the server configuration and status")
     async def server_status(self, interaction: discord.Interaction):
         await interaction.response.defer()
@@ -347,10 +370,22 @@ class BotCommands(commands.Cog):
         if await check_coc_player_tag(clean_tag):
             cursor = get_db_cursor()
             cursor.execute("""
-                INSERT INTO players (discord_id, discord_username, guild_id, guild_name, player_tag)
-                VALUES (%s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE player_tag = VALUES(player_tag)
-            """, (interaction.user.id, interaction.user.display_name, interaction.guild.id, interaction.guild.name, clean_tag))
+            INSERT INTO players (
+                discord_id, discord_username, guild_id, guild_name, player_tag, is_premium
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE 
+                player_tag = VALUES(player_tag),
+                discord_username = VALUES(discord_username),
+                guild_name = VALUES(guild_name)
+        """, (
+            interaction.user.id, 
+            interaction.user.display_name, 
+            interaction.guild.id, 
+            interaction.guild.name, 
+            clean_tag, 
+            0  # Default to 0 for new inserts
+        ))
             await interaction.response.send_message(f"Linked to **{clean_tag}**!")
         else:
             await interaction.response.send_message("Invalid player tag.", ephemeral=True)
@@ -363,6 +398,7 @@ class BotCommands(commands.Cog):
             await interaction.response.send_message("✅ Your Clash of Clans account has been unlinked from this server.")
         else:
             await interaction.response.send_message("❌ You don't have an account linked in this server.", ephemeral=True)
+
 
     
     @app_commands.command(name="disable_reminders", description="Turn off specific background reminders")

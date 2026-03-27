@@ -61,28 +61,22 @@ db_connection = None
 def get_db_cursor():
     global db_connection
     try:
-        # 1. Check if it's None first
-        if db_connection is None:
+        # 1. Check connection health
+        if db_connection is None or not db_connection.is_connected():
             db_connection = connect_db()
-            return db_connection.cursor()
+            # Explicitly set buffered=True here
+            return db_connection.cursor(buffered=True)
 
-        # 2. Ping the database.
-        # reconnect=True will automatically try to fix a dropped connection.
-        # attempts=3 gives it a few tries if the network is jittery on Railway.
+        # 2. Ping to keep Railway from killing the connection
         db_connection.ping(reconnect=True, attempts=3, delay=2)
         
-        return db_connection.cursor()
+        # 3. Return a buffered cursor
+        return db_connection.cursor(buffered=True)
 
     except Exception as e:
-        print(f"⚠️ Database Ping/Reconnect failed: {e}")
-        try:
-            # 3. Last Resort: Force a completely new connection
-            print("🔄 Attempting full database reset...")
-            db_connection = connect_db()
-            return db_connection.cursor()
-        except Exception as final_e:
-            print(f"❌ CRITICAL DATABASE FAILURE: {final_e}")
-            raise final_e
+        print(f"⚠️ Database Reconnect Triggered: {e}")
+        db_connection = connect_db()
+        return db_connection.cursor(buffered=True)
         
 async def get_safe_cursor(retries=3, delay=3):
     """

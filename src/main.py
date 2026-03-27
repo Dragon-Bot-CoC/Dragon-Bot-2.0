@@ -48,21 +48,18 @@ async def setup():
         await bot.start(TOKEN) 
 
 @tasks.loop(minutes=9)
-async def db_heartbeat(self):
-    cursor = None
-    # Attempt to connect up to 3 times
-    for attempt in range(3):
-        try:
-            cursor = get_db_cursor()
-            if cursor: break 
-        except:
-            await asyncio.sleep(5) # Wait 5 seconds before retrying
-    
-    if not cursor:
-        print("❌ Could not recover DB connection after 3 attempts.")
-        return
-
-    # ... rest of your logic ...
+async def db_heartbeat(): # Removed 'self'
+    """Keeps the Railway MySQL instance warm every 9 mins"""
+    try:
+        # will just try again in 9 minutes if it fails once.
+        cursor = get_db_cursor()
+        if cursor:
+            # We MUST execute a query to keep the connection alive
+            cursor.execute("SELECT 1")
+            cursor.close()
+            print("💓 DB Heartbeat: Connection is warm.")
+    except Exception as e:
+        print(f"⚠️ Heartbeat: Database is likely rebooting or timed out... {e}")
 # --- BOT EVENTS ---
 
 @bot.event
@@ -97,7 +94,7 @@ async def on_guild_join(guild):
             VALUES (%s, %s)
         """, (str(guild.id), guild.name))
         if guild.system_channel:
-            await guild.system_channel.send("Dragon Bot 2.0 has arrived! Use `/setclantag` to get started.")
+            await guild.system_channel.send("Dragon Bot 2.0 has arrived! Use `/setclantag` to get started and `/help` for more information.")
     except Exception as e:
         print(f"DB Error on guild join: {e}")
 

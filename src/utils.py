@@ -29,17 +29,31 @@ def fetch_clan_from_db(guild_id: int, provided_tag: str = None) -> str:
         return tag if tag.startswith("#") else f"#{tag}"
     raise ClanNotSetError()
 
-def fetch_player_from_DB(guild_id: int, user=None, provided_tag: str = None) -> str:
+
+def fetch_player_from_DB(guild_id: int, user=None, provided_tag: str = None, cursor=None) -> str:
+    """Fetches player tag, reusing existing cursor if provided."""
     if provided_tag:
         return provided_tag.strip().upper()
     
     if user:
-        cursor = get_db_cursor()
-        cursor.execute("SELECT player_tag FROM players WHERE discord_id = %s AND guild_id = %s", (user.id, guild_id))
-        row = cursor.fetchone()
-        if row and row[0]:
-            return row[0]
-        raise PlayerNotLinkedError(user.display_name)
+        local_cursor = False
+        if cursor is None:
+            cursor = get_db_cursor()
+            local_cursor = True
+        
+        try:
+            cursor.execute(
+                "SELECT player_tag FROM players WHERE discord_id = %s AND guild_id = %s", 
+                ((user.id), (guild_id))
+            )
+            row = cursor.fetchone()
+            if row and row[0]:
+                return row[0]
+            raise PlayerNotLinkedError(user.display_name)
+        finally:
+            if local_cursor and cursor:
+                cursor.close()
+                
     raise PlayerTagError("Please provide a player tag or mention a linked user.")
 
 # --- Formatting Helpers ---
@@ -57,7 +71,7 @@ def format_month_day_year(dt):
     est = dt_obj.astimezone(timezone(timedelta(hours=-5)))
     return est.strftime('%m-%d-%Y')
 
-def format_time(self, seconds):
+def format_time(seconds):
         hours = int(seconds // 3600)
         minutes = int((seconds % 3600) // 60)
         return f"{hours}h {minutes}m"
@@ -107,14 +121,6 @@ async def get_clan_data(clan_tag: str):
     except Exception as e:
         raise RuntimeError(f"Clash API Error: {e}")
 
-# async def get_war_log_data(clan_tag: str):
-#     try:
-#         return await coc_client.get_war_log(clan_tag)
-#     except coc.PrivateWarLog:
-#         raise RuntimeError("The clan's war log is private.")
-#     except Exception as e:
-#         raise RuntimeError(f"Clash API Error: {e}")
-    
 async def get_capital_raid_data(clan_tag: str):
     """
     Manually constructs a dictionary from RaidLogEntry objects.
@@ -227,7 +233,7 @@ def calculate_medals(entry):
         
         # Per-player estimate: (Total Pool / Clan Attacks) * 6
         estimate = (raw_pool / max(1, total_clan_attacks)) * 6
-        return f"Estimated to be {round(estimate):,}"
+        return f"Estimated {round(estimate):,} medals"
     
     else:
         # Final medals for completed raids

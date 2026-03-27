@@ -331,59 +331,73 @@ class ClanCommands(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"Error: {e}")
 
-    @tasks.loop(hours=6)
-    async def raid_check(self):
-        """Precise reminders at 24h and 6h remaining."""
-        try:
-            cursor = await get_safe_cursor(retries=3, delay=5)
-            cursor.execute("SELECT clan_tag, raid_channel_id FROM servers")
-            
-            for tag, raid_channel_id in cursor.fetchall():
-                if not tag or not raid_channel_id: continue
+@tasks.loop(minutes=20)
+async def raid_check(self):
+    cursor = await get_safe_cursor(retries=3, delay=5)
+    try:
+        cursor.execute("SELECT clan_tag, raid_channel_id, last_raid_reminder FROM servers")
+        tracked_servers = cursor.fetchall()
 
-                async for raid in self.coc_client.get_raid_log(tag, limit=1):
-                    if raid.state != "ongoing":
-                        break
-                    
-                    seconds_left = raid.end_time.seconds_until
-                    
-                    # --- THE WINDOWS ---
-                    # Window 1: 24 Hours Left (Interval: 18h to 24.5h)
-                    is_24h_call = 64800 <= seconds_left <= 88200
-                    
-                    # Window 2: 6 Hours Left (Interval: 0.5h to 7h)
-                    is_6h_call = 1800 <= seconds_left <= 25200
+        for tag, raid_channel_id, last_sent in tracked_servers:
+            if not tag or not raid_channel_id: 
+                continue
 
-                    if not (is_24h_call or is_6h_call):
-                        continue
-
-                    # Identify Slackers
-                    slackers = [f"• **{m.name}** ({m.attack_count}/6)" for m in raid.members if m.attack_count < 6]
-                    
-                    if slackers:
-                        channel = self.bot.get_channel(int(raid_channel_id))
-                        if not channel:
-                            try: channel = await self.bot.fetch_channel(int(raid_channel_id))
-                            except: continue
-
-                        time_label = "24 HOURS REMAINING" if is_24h_call else "🚨 FINAL 6 HOURS"
-                        
-                        embed = discord.Embed(
-                            title=f"🏰 {time_label}: Capital Raid",
-                            description="Finish your attacks for more clan medals!",
-                            color=0xFFCC00 if is_24h_call else 0xFF4500 # Yellow then Orange/Red
+            async for raid in self.coc_client.get_raid_log(tag, limit=1):
+                # 1. Reset Logic
+                if raid.state != "ongoing":
+                    if last_sent is not None:
+                        cursor.execute(
+                            "UPDATE servers SET last_raid_reminder = NULL WHERE clan_tag = %s", 
+                            (tag,)
                         )
-                        embed.add_field(name="Pending Hits", value="\n".join(slackers[:20]))
-                        embed.set_footer(text=f"Total Loot So Far: {raid.capital_resources_looted:,}")
-                        
-                        await channel.send(embed=embed)
-                    break 
-        except Exception as e:
-            print(f"Raid Task Error: {e}")
+                    break
+                
+                hours_left = raid.end_time.seconds_until / 3600
+                reminder_type = None
+                
+                if hours_left <= 6 and last_sent != "6h":
+                    reminder_type = "6h"
+                elif hours_left <= 24 and last_sent not in ["24h", "6h"]:
+                    reminder_type = "24h"
 
-    @raid_check.before_loop
-    async def before_raid_check(self):
-        await self.bot.wait_until_ready()
+                if not reminder_type:
+                    continue
+
+                # 2. Identify Slackers
+                slackers = [f"• **{m.name}** ({m.attack_count}/6)" for m in raid.members if m.attack_count < 6]
+                
+                # 3. Only send if there's actually someone to nag
+                if slackers:
+                    channel = self.bot.get_channel(int(raid_channel_id))
+                    if not channel:
+                        try: channel = await self.bot.fetch_channel(int(raid_channel_id))
+                        except: continue
+
+                    is_6h = (reminder_type == "6h")
+                    embed = discord.Embed(
+                        title=f"🏰 {'🚨 FINAL 6 HOURS' if is_6h else '24 HOURS REMAINING'}: Capital Raid",
+                        description="Finish your attacks for more clan medals!",
+                        color=0xFF4500 if is_6h else 0xFFCC00
+                    )
+                    embed.add_field(name="Pending Hits", value="\n".join(slackers[:20]))
+                    embed.set_footer(text=f"Total Loot: {raid.capital_resources_looted:,}")
+                    await channel.send(embed=embed)
+
+                # This prevents the bot from re-querying the CoC API for this clan until the next threshold.
+                cursor.execute(
+                    "UPDATE servers SET last_raid_reminder = %s WHERE clan_tag = %s", 
+                    (reminder_type, tag)
+                )
+            
+    except Exception as e:
+        print(f"Raid Task Error: {e}")
+    finally:
+        # Crucial for Railway stability to prevent connection leaks
+        cursor.close()
+
+@raid_check.before_loop
+async def before_raid_check(self):
+    await self.bot.wait_until_ready()
 
 # @app_commands.command(name="test_raid_reminder", description="Forces a raid reminder check for the current server.")
 # async def test_raid_reminder(self, interaction: discord.Interaction):
