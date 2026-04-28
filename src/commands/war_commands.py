@@ -12,7 +12,7 @@ from utils import (
 )
 class WarStatsView(discord.ui.View):
     def __init__(self, attacked_data, unattacked_data, source_label, our_name, opp_name, timer_text, max_atks):
-        super().__init__(timeout=60) # Button works for 60 seconds
+        super().__init__(timeout=None) # Button timer
         self.attacked = attacked_data
         self.unattacked = unattacked_data
         self.source_label = source_label
