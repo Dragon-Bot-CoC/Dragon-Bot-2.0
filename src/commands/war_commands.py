@@ -569,7 +569,7 @@ class WarPatrol(commands.Cog):
                     # Check if war just ended
                     if war_data and war_data.state == "warEnded":
                         if last_sent != "summary_sent":
-                            await self.send_war_result_summary(war_channel_id, war_data, clan_tag)
+                            await self.send_war_summary(guild_id, war_channel_id, war_data, clan_tag)
                             cursor.execute("UPDATE servers SET last_war_reminder = 'summary_sent' WHERE clan_tag = %s", (clan_tag,))
                             get_db_connection().commit()
                         continue
@@ -688,28 +688,49 @@ class WarPatrol(commands.Cog):
         channel = self.bot.get_channel(int(channel_id)) or await self.bot.fetch_channel(int(channel_id))
         if not channel: return
 
+        # Identify 'our' vs 'opp'
         our = war.clan if war.clan.tag == tag else war.opponent
         opp = war.opponent if war.clan.tag == tag else war.clan
 
-        # Determine Result with Draw handling
-        if our.stars > opp.stars or (our.stars == opp.stars and our.destruction > opp.destruction):
-            result_text, color = "🏆 VICTORY", 0x00ff00
-        elif our.stars == opp.stars and our.destruction == opp.destruction:
-            result_text, color = "DRAW", 0xffff00 # Yellow
-        else:
-            result_text, color = "DEFEAT", 0xff0000
-
-        embed = discord.Embed(
-            title=f"War Results: {our.name} vs {opp.name}",
-            description=f"**Result:** {result_text}",
-            color=color
-        )
-
-        embed.add_field(name=f"{our.name}", value=f"⭐ `{our.stars}`\n💥 `{round(our.destruction, 1)}%`", inline=True)
-        embed.add_field(name=f"{opp.name}", value=f"⭐ `{opp.stars}`\n💥 `{round(opp.destruction, 1)}%`", inline=True)
+        # 1. Calculate Results
+        won = our.stars > opp.stars or (our.stars == opp.stars and our.destruction > opp.destruction)
+        draw = our.stars == opp.stars and our.destruction == opp.destruction
         
-        embed.set_footer(text="War concluded. Use /currentwar stats for details.")
-        await channel.send(content="🎖️ **The War has ended!**", embed=embed)
+        result_text = "🏆 VICTORY" if won else "🤝 DRAW" if draw else "DEFEAT"
+        embed_color = 0x00ff00 if won else 0xffff00 if draw else 0xff0000
+
+        # 2. Process Member Stats (Logic from your currentwar command)
+        opp_th_map = {m.tag: m.town_hall for m in opp.members}
+        max_atks = getattr(war, 'attacks_per_member', 2)
+        attacked, unattacked = [], []
+        
+        our_members = sorted(our.members, key=lambda x: x.map_position or 99)[:war.team_size]
+        for i, m in enumerate(our_members, 1):
+            atks = getattr(m, 'attacks', [])
+            diff_str = ""
+            if atks:
+                th_diffs = [f"{(opp_th_map.get(a.defender_tag, m.town_hall) - m.town_hall):+}" for a in atks]
+                opp_lineup = sorted(opp.members, key=lambda x: x.map_position or 99)[:war.team_size]
+                mirr_diffs = [f"{(i - (next((idx + 1 for idx, om in enumerate(opp_lineup) if om.tag == a.defender_tag), i))):+}" for a in atks]
+                diff_str = f" [TH:{','.join(th_diffs)} M:{','.join(mirr_diffs)}]"
+            
+            entry = {"rel_pos": i, "th": m.town_hall, "name": m.name[:10], "stars": sum(a.stars for a in atks), "pct": int(sum(a.destruction for a in atks)), "att": len(atks), "diff": diff_str}
+            if entry["att"] > 0: attacked.append(entry)
+            else: unattacked.append(entry)
+
+        # 3. Create the View & Initial Embed
+        source_label = "CWL" if max_atks == 1 else "Standard"
+        view = WarStatsView(attacked, unattacked, source_label, our.name, opp.name, f"Result: {result_text}", max_atks)
+        
+        # Use the class method to generate the base embed
+        embed = view.create_stats_embed(full=False)
+        embed.color = embed_color # Apply our result color
+        
+        # Add summary fields to the top
+        embed.insert_field_at(0, name=f"{our.name}", value=f"⭐ `{our.stars}` | 💥 `{round(our.destruction, 1)}%`", inline=True)
+        embed.insert_field_at(1, name=f"{opp.name}", value=f"⭐ `{opp.stars}` | 💥 `{round(opp.destruction, 1)}%`", inline=True)
+
+        await channel.send(content=f"🎖️ **The War has ended!** {result_text}", embed=embed, view=view)
 
         
 
